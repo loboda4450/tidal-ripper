@@ -31,14 +31,15 @@ class QueueObject:
 
 
 class QueueTrack(QueueObject):
-    def __init__(self, track):
+    def __init__(self, track, folder):
         self.track = track
-        print(Fore.RED + f'\nEnqueued track: {self.track.artist.name} - {self.track.name}' + '\n')
+        self.folder = folder
+
 
     def download(self):
         track_name = f'{self.track.name}{f" ({self.track.version})" if self.track.version else ""}'
         print(Fore.GREEN + f'\nDownloading track: {self.track.artist.name} - {track_name}')
-        download_flac(self.track, folder / f'{self.track.artist.name} - {track_name}.flac'.replace("/", "_"))
+        download_flac(self.track, self.folder / f'{self.track.artist.name} - {track_name}.flac'.replace("/", "_"))
         print(Fore.CYAN + f'\nTrack: {self.track.artist.name} - {track_name} downloaded!')
 
     def display(self):
@@ -51,7 +52,6 @@ class QueueAlbum(QueueObject):
         self.album = album
         self.album_id = album_id
         self.folder = folder
-        print(Fore.RED + f'\nEnqueued album: {self.album.artist.name} - {self.album.name}' + '\n')
 
     def download(self):
         print(Fore.GREEN + f'Downloading album: {self.album.artist.name} - {self.album.name}')
@@ -79,8 +79,9 @@ class QueueAlbum(QueueObject):
 
 
 class QueuePlaylist(QueueObject):
-    def __init__(self, playlist, folder):
+    def __init__(self, playlist, playlist_id, folder):
         self.playlist = playlist
+        self.playlist_id = playlist_id
         self.folder = folder
 
     def download(self):
@@ -183,7 +184,7 @@ def download_thread(q):
         if q.qsize() > 0:
             tmp = q.get()
             tmp.download()
-    time.sleep(1)
+        time.sleep(1)
 
 if __name__ == "__main__":
     import argparse
@@ -191,7 +192,7 @@ if __name__ == "__main__":
 
     q = queue.Queue()  # infinite queue
     d_thread = threading.Thread(target=download_thread, args=(q,))
-    d_thread.start()  # starting a download thread (works continuously)
+    d_thread.start()  # starting a download thread
     print("Download thread has started\n")
 
     p = argparse.ArgumentParser()
@@ -231,17 +232,24 @@ if __name__ == "__main__":
             elif mode == "1":
                 link = input("Enter link or track id: ")
                 track_id = link.split('/')[-1]
-                q.put(QueueTrack(session.get_track(track_id, withAlbum=True)))  # adding a track to download queue
+                track = session.get_track(track_id, withAlbum=True)
+                q.put(QueueTrack(track, folder))  # adding a track to download queue
+                print(Fore.RED + f'\nEnqueued track: {track.artist.name} - {track.name}' + '\n')
+
 
             elif mode == "2":
                 link = input("Enter album link or id: ")
                 album_id = link.split('/')[-1]
-                q.put(QueueAlbum(session.get_album(album_id=album_id), album_id, folder))  # adding a track to download queue
+                album = session.get_album(album_id=album_id)
+                q.put(QueueAlbum(album, album_id, folder))  # adding a track to download queue
+                print(Fore.RED + f'\nEnqueued album: {album.artist.name} - {album.name}' + '\n')
 
             elif mode == "3":
                 link = input("Enter playlist link or id: ")
                 playlist_id = link.split('/')[-1]
-                q.put(QueuePlaylist(session.get_playlist(playlist_id=playlist_id), folder))
+                playlist = session.get_playlist(playlist_id=playlist_id)
+                q.put(QueuePlaylist(playlist, playlist_id, folder))
+                print(Fore.RED + f'\nEnqueued playlist: {playlist.name} + \n')
 
             elif mode == "4":
                 if not q.empty():
