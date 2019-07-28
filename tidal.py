@@ -17,7 +17,6 @@ import threading
 import sys
 from colorama import init, Fore, Back
 
-init(autoreset=True)
 
 class QueueObject:
     def __init__(self):
@@ -38,7 +37,7 @@ class QueueTrack(QueueObject):
 
     def download(self):
         track_name = f'{self.track.name}{f" ({self.track.version})" if self.track.version else ""}'
-        print(Fore.GREEN + f'\nDownloading track: {self.track.artist.name} - {track_name}' + '\n')
+        print(Fore.GREEN + f'\nDownloading track: {self.track.artist.name} - {track_name}')
         download_flac(self.track, folder / f'{self.track.artist.name} - {track_name}.flac'.replace("/", "_"))
         print(Fore.CYAN + f'\nTrack: {self.track.artist.name} - {track_name} downloaded!')
         pass
@@ -67,7 +66,7 @@ class QueueAlbum(QueueObject):
                 num += 1
                 track_name = f'{track.name}{f" ({track.version})" if track.version else ""}'
                 track_name = track_name.replace('"', '')
-                print(Fore.GREEN + f'Downloading ({num}/{self.album.num_tracks}): {track_name}' + '\n') # printing each downloaded element kills clarity so badly
+                print(Fore.GREEN + f'Downloading ({num}/{self.album.num_tracks}): {track_name}')  # printing each downloaded element kills clarity so badly//not if coloured
                 fname = f'{str(track.track_num).zfill(2)}. {track_name.replace("/", "_")}.flac'
                 download_flac(track, folder / fname, album=self.album)
                 playlist_file.write(fname)
@@ -87,10 +86,26 @@ class QueuePlaylist(QueueObject):
         pass
 
     def download(self):
+        print(Fore.GREEN + f'Downloading playlist: {self.playlist.name}')
+        tracks = session.get_playlist_tracks(playlist_id=playlist_id)
+        num = 0
+        folder = self.folder / self.playlist.name.replace("/", "_")
+        folder.mkdir(parents=True, exist_ok=True)
+        with open(folder / f'{self.playlist.name.replace("/", "_")}.m3u', "w") as playlist_file:
+            for track in tracks:
+                num += 1
+                track_name = f'{track.name}{f" ({track.version})" if track.version else ""}'
+                track_name = track_name.replace('"', '')
+                print(f'Downloading ({num}/{self.playlist.num_tracks}): {track_name}')
+                fname = f'{track.artist.name} - {track_name}.flac'.replace("/", "_")
+                download_flac(track, folder / fname)
+                playlist_file.write(fname)
+                playlist_file.write("\n")
+        print(Fore.CYAN + f'\nPlaylist {self.playlist.name} downloaded!' + '\n')
         pass
 
     def display(self):
-        print(self.playlist_id)
+        print(self.playlist.name)
         pass
 
 
@@ -176,6 +191,7 @@ def download_thread(q):
 
 if __name__ == "__main__":
     import argparse
+    init(autoreset=True)
 
     q = queue.Queue()  # infinite queue
     d_thread = threading.Thread(target=download_thread, args=(q,))
@@ -200,7 +216,8 @@ if __name__ == "__main__":
         folder = Path(args.output_dir)
         folder.mkdir(parents=True, exist_ok=True)
 
-        print("0) Search for track\n1) Download track\n2) Download album\n3) Download playlist\n4) Display queue\n5) Exit\n")
+        print(
+            "0) Search for track\n1) Download track\n2) Download album\n3) Download playlist\n4) Display queue\n5) Exit\n")
         mode = input("Select mode:")
 
         # TODO: download queue
@@ -221,28 +238,14 @@ if __name__ == "__main__":
                 q.put(QueueTrack(session.get_track(track_id, withAlbum=True)))  # adding a track to download queue
 
             elif mode == "2":
-                link = input("Enter album id: ")
+                link = input("Enter album link or id: ")
                 album_id = link.split('/')[-1]
                 q.put(QueueAlbum(session.get_album(album_id=album_id), folder))  # adding a track to download queue
 
             elif mode == "3":
-                playlist_id = input("Enter playlist id: ")
-                playlist = session.get_playlist(playlist_id=playlist_id)
-                tracks = session.get_playlist_tracks(playlist_id=playlist_id)
-                print(f'Downloading playlist: {playlist.name}')
-                num = 0
-                folder = folder / playlist.name.replace("/", "_")
-                folder.mkdir(parents=True, exist_ok=True)
-                with open(folder / f'{playlist.name.replace("/", "_")}.m3u', "w") as playlist_file:
-                    for track in tracks:
-                        num += 1
-                        track_name = f'{track.name}{f" ({track.version})" if track.version else ""}'
-                        print(f'Downloading ({num}/{playlist.num_tracks}): {track_name}')
-                        fname = f'{track.artist.name} - {track_name}.flac'.replace("/", "_")
-                        download_flac(track, folder / fname)
-                        playlist_file.write(fname)
-                        playlist_file.write("\n")
-                print("Playlist downloaded!")
+                link = input("Enter playlist link or id: ")
+                playlist_id = link.split('/')[-1]
+                q.put(QueuePlaylist(session.get_playlist(playlist_id=playlist_id), folder))
 
             elif mode == "4":
                 if not q.empty():
@@ -259,11 +262,10 @@ if __name__ == "__main__":
                     sys.exit("Queue is not empty, ripper will shut down immediately after the download process")
                 else:
                     sys.exit("Thanks for using tidal ripper. Don't close this window if your last download hasn't finished. See you around!")
-
             else:
                 print("Incorrect mode!")
 
         except FLACNoHeaderError:
-            print("This track is not available in lossless quality, abandoning")
+            print(Fore.BLACK + Back.RED + "This track is not available in lossless quality, abandoning")
         except Exception as e:
             print(f"Error occurred: {e}")
