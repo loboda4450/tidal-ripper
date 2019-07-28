@@ -15,6 +15,7 @@ from mutagen.flac import Picture, FLAC, FLACNoHeaderError
 import queue
 import threading
 import sys
+import time
 from colorama import init, Fore, Back
 
 
@@ -33,29 +34,28 @@ class QueueTrack(QueueObject):
     def __init__(self, track):
         self.track = track
         print(Fore.RED + f'\nEnqueued track: {self.track.artist.name} - {self.track.name}' + '\n')
-        pass
 
     def download(self):
         track_name = f'{self.track.name}{f" ({self.track.version})" if self.track.version else ""}'
         print(Fore.GREEN + f'\nDownloading track: {self.track.artist.name} - {track_name}')
         download_flac(self.track, folder / f'{self.track.artist.name} - {track_name}.flac'.replace("/", "_"))
         print(Fore.CYAN + f'\nTrack: {self.track.artist.name} - {track_name} downloaded!')
-        pass
 
     def display(self):
+        track_name = f'{self.track.name}{f" ({self.track.version})" if self.track.version else ""}'
         print(f'Track {self.track.artist.name} - {track_name}')
-        pass
 
 
 class QueueAlbum(QueueObject):
-    def __init__(self, album, folder):
+    def __init__(self, album, album_id, folder):
         self.album = album
+        self.album_id = album_id
         self.folder = folder
         print(Fore.RED + f'\nEnqueued album: {self.album.artist.name} - {self.album.name}' + '\n')
 
     def download(self):
         print(Fore.GREEN + f'Downloading album: {self.album.artist.name} - {self.album.name}')
-        tracks = session.get_album_tracks(album_id=album_id)  # type: typing.Iterable[tidalapi.models.Track]
+        tracks = session.get_album_tracks(album_id=self.album_id)  # type: typing.Iterable[tidalapi.models.Track]
         num = 0
         # TODO: handle multicd albums better (separate dirs and playlists?)
         discs = max(map(lambda x: x.disc_num, tracks))
@@ -72,7 +72,6 @@ class QueueAlbum(QueueObject):
                 playlist_file.write(fname)
                 playlist_file.write("\n")
         print(Fore.CYAN + f'\nAlbum {self.album.artist.name} - {self.album.name} downloaded!' + '\n')
-        pass
 
     def display(self):
         print(Fore.LIGHTMAGENTA_EX + f'Album {self.album.artist.name} - {self.album.name}')
@@ -83,7 +82,6 @@ class QueuePlaylist(QueueObject):
     def __init__(self, playlist, folder):
         self.playlist = playlist
         self.folder = folder
-        pass
 
     def download(self):
         print(Fore.GREEN + f'Downloading playlist: {self.playlist.name}')
@@ -102,11 +100,9 @@ class QueuePlaylist(QueueObject):
                 playlist_file.write(fname)
                 playlist_file.write("\n")
         print(Fore.CYAN + f'\nPlaylist {self.playlist.name} downloaded!' + '\n')
-        pass
 
     def display(self):
         print(self.playlist.name)
-        pass
 
 
 def get_track_title(track):
@@ -187,7 +183,7 @@ def download_thread(q):
         if q.qsize() > 0:
             tmp = q.get()
             tmp.download()
-
+    time.sleep(1)
 
 if __name__ == "__main__":
     import argparse
@@ -240,7 +236,7 @@ if __name__ == "__main__":
             elif mode == "2":
                 link = input("Enter album link or id: ")
                 album_id = link.split('/')[-1]
-                q.put(QueueAlbum(session.get_album(album_id=album_id), folder))  # adding a track to download queue
+                q.put(QueueAlbum(session.get_album(album_id=album_id), album_id, folder))  # adding a track to download queue
 
             elif mode == "3":
                 link = input("Enter playlist link or id: ")
