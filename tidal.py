@@ -15,7 +15,6 @@ from mutagen.flac import Picture, FLAC, FLACNoHeaderError
 import queue
 import threading
 import sys
-import time
 import re
 from colorama import init, Fore, Back
 import os
@@ -334,11 +333,12 @@ if __name__ == "__main__":
 
             elif mode == "5":
                 if not q.empty():
-                    sys.exit("Queue is not empty, ripper will shut down immediately after the download process")
+                    print('Queue is not empty, ripper will shut down immediately after the download process')
+                    sys.exit(0)
                 else:
-                    sys.exit(
-                        "Thanks for using tidal ripper. Don't close this window if your last download hasn't "
-                        "finished. See you around!")
+                    print("Thanks for using tidal ripper. Don't close this window if your last download hasn't "
+                          "finished. See you around!")
+                    sys.exit(0)
             else:
                 print("Incorrect mode!")
 
