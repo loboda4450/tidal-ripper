@@ -230,16 +230,14 @@ def download_flac(track: tidalapi.models.Track, file_path, album=None):
 
 def download_thread(q, display):
     while True:
-        if q.qsize() > 0:
-            tmp = q.get()
-            print(Fore.LIGHTMAGENTA_EX + q.qsize() + 'elements left in queue')
-            tmp.download(display)
-        time.sleep(1)
+        tmp = q.get()
+        print(Fore.LIGHTMAGENTA_EX + str(q.qsize()) + 'elements left in queue')
+        tmp.download(display)
 
 
 def internet_access():
     try:
-        requests.get("http://google.com", timeout=3)
+        requests.get("http://github.com", timeout=3)
         return True
     except requests.ConnectionError:
         pass
@@ -284,7 +282,7 @@ if __name__ == "__main__":
     print(Back.BLUE + Fore.LIGHTGREEN_EX + "Tidal FLAC ripper\n")
 
     while True:
-        folder = Path('H:/Flaczki')
+        folder = Path(args.output_dir)
         folder.mkdir(parents=True, exist_ok=True)
 
         print(
