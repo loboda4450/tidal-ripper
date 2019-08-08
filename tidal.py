@@ -72,7 +72,7 @@ class QueueAlbum(QueueObject):
         self.album = album
         self.folder = folder
 
-    def download(self, boolean):
+    def download(self, display):
         try:
             print(Fore.GREEN + f'Downloading album: {self.album.artist.name} - {self.album.name}')
             tracks = session.get_album_tracks(album_id=self.album.id)  # type: typing.Iterable[tidalapi.models.Track]
@@ -89,7 +89,7 @@ class QueueAlbum(QueueObject):
                     try:
                         track_name = f'{track.name}{f" ({track.version})" if track.version else ""}'
                         track_name = re.sub('\W+', ' ', track_name)
-                        if boolean:
+                        if display:
                             print(
                                 Fore.GREEN + f'Downloading ({num}/{self.album.num_tracks}): {track_name}')  # printing
                             # each downloaded element kills clarity so badly//not if coloured
@@ -122,7 +122,7 @@ class QueuePlaylist(QueueObject):
         self.playlist = playlist
         self.folder = folder
 
-    def download(self, boolean):
+    def download(self, display):
         try:
             print(Fore.GREEN + f'Downloading playlist: {self.playlist.name}')
             tracks = session.get_playlist_tracks(playlist_id=self.playlist.id)
@@ -134,7 +134,7 @@ class QueuePlaylist(QueueObject):
                     num += 1
                     track_name = f'{track.name}{f" ({track.version})" if track.version else ""}'
                     track_name = re.sub('\W+', ' ', track_name)
-                    if boolean:
+                    if display:
                         print(Fore.GREEN + f'Downloading ({num}/{self.playlist.num_tracks}): {track_name}')
                     fname = f'{track.artist.name} - {track_name}.flac'.replace("/", "_")
                     download_flac(track, folder / fname)
@@ -228,12 +228,12 @@ def download_flac(track: tidalapi.models.Track, file_path, album=None):
         shutil.copyfileobj(data, f)
 
 
-def download_thread(q, boolean):
+def download_thread(q, display):
     while True:
         if q.qsize() > 0:
             tmp = q.get()
             print(Fore.LIGHTMAGENTA_EX + q.qsize() + 'elements left in queue')
-            tmp.download(boolean)
+            tmp.download(display)
         time.sleep(1)
 
 
@@ -272,12 +272,12 @@ if __name__ == "__main__":
 
     print(Fore.LIGHTRED_EX + "Do you want to display downloaded elements? [y/n]")
     if input() != 'n':
-        boolean = True
+        display = True
     else:
-        boolean = False
+        display = False
 
     q = queue.Queue()  # infinite queue
-    d_thread = threading.Thread(target=download_thread, args=(q, boolean))
+    d_thread = threading.Thread(target=download_thread, args=(q, display))
     d_thread.start()  # starting a download thread
     print(Fore.LIGHTYELLOW_EX + "Download thread has started\n")
 
