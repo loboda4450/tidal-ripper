@@ -24,7 +24,7 @@ class QueueObject:
     def __init__(self):
         pass
 
-    def download(self, boolean):
+    def download(self):
         pass
 
     def display(self):
@@ -36,19 +36,18 @@ class QueueTrack(QueueObject):
         self.track = track
         self.folder = folder
 
-    def download(self, boolean):
+    def download(self):
         try:
-            for dir in os.listdir(self.folder):
-                if dir == self.track.artist.name.replace("/", "_"):
-                    folder = dir
+            for directory in os.listdir(self.folder):
+                if directory == self.track.artist.name.replace("/", "_"):
+                    folder = directory
                     break
                 else:
                     folder = self.folder / '1. No album'
 
             track_name = f'{self.track.name}{f" ({self.track.version})" if self.track.version else ""}'
-            track_name = re.sub('\W+', ' ', track_name)
-            if boolean:
-                print(Fore.GREEN + f'\nDownloading track: {self.track.artist.name} - {track_name} to the {folder}')
+            track_name = delete_forbidden_signs(track_name)
+            print(Fore.GREEN + f'\nDownloading track: {self.track.artist.name} - {track_name} to {folder}')
             download_flac(self.track, folder / f'{self.track.artist.name} - {track_name}.flac'.replace("/", "_"))
             print(Fore.CYAN + f'\nTrack: {self.track.artist.name} - {track_name} downloaded!')
         except FLACNoHeaderError:
@@ -71,27 +70,28 @@ class QueueAlbum(QueueObject):
         self.album = album
         self.folder = folder
 
-    def download(self, display):
+    def download(self):
         try:
             print(Fore.GREEN + f'Downloading album: {self.album.artist.name} - {self.album.name}')
             tracks = session.get_album_tracks(album_id=self.album.id)  # type: typing.Iterable[tidalapi.models.Track]
             num = 0
             # TODO: handle multicd albums better (separate dirs and playlists?)
             discs = max(map(lambda x: x.disc_num, tracks))
-            folder = self.folder / self.album.artist.name.replace("/",
-                                                                  "_") / f'{f"({self.album.release_date.year}) " if self.album.release_date is not None else ""}{self.album.name}'.replace(
+            name = f'{f"({self.album.release_date.year}) " if self.album.release_date is not None else ""}{self.album.name}'.replace(
                 "/", "_")
+            name = delete_forbidden_signs(name)
+            folder = self.folder / self.album.artist.name.replace("/",
+                                                                  "_") / name
             folder.mkdir(parents=True, exist_ok=True)
-            with open(folder / f'00. {self.album.name.replace("/", "_")}.m3u', 'w') as playlist_file:
+            with open(folder / f'00. {delete_forbidden_signs(self.album.name)}.m3u', 'w') as playlist_file:
                 for track in tracks:
-                    num += 1
                     try:
+                        num += 1
                         track_name = f'{track.name}{f" ({track.version})" if track.version else ""}'
-                        track_name = re.sub('\W+', ' ', track_name)
-                        if display:
-                            print(
-                                Fore.GREEN + f'Downloading ({num}/{self.album.num_tracks}): {track_name}')  # printing
-                            # each downloaded element kills clarity so badly//not if coloured
+                        track_name = delete_forbidden_signs(track_name)
+                        print(
+                            Fore.GREEN + f'Downloading ({num}/{self.album.num_tracks}): {track_name}')  # printing
+                        # each downloaded element kills clarity so badly//not if coloured
                         fname = f'{str(track.track_num).zfill(2)}. {track_name.replace("/", "_")}.flac'
                         download_flac(track, folder / fname, album=self.album)
                         playlist_file.write(fname)
@@ -121,20 +121,20 @@ class QueuePlaylist(QueueObject):
         self.playlist = playlist
         self.folder = folder
 
-    def download(self, display):
+    def download(self):
         try:
             print(Fore.GREEN + f'Downloading playlist: {self.playlist.name}')
             tracks = session.get_playlist_tracks(playlist_id=self.playlist.id)
             num = 0
-            folder = self.folder / self.playlist.name.replace("/", "_")
+            playlist_name = delete_forbidden_signs(self.playlist.name)
+            folder = self.folder / playlist_name
             folder.mkdir(parents=True, exist_ok=True)
             with open(folder / f'{self.playlist.name.replace("/", "_")}.m3u', "w") as playlist_file:
                 for track in tracks:
                     num += 1
                     track_name = f'{track.name}{f" ({track.version})" if track.version else ""}'
-                    track_name = re.sub('\W+', ' ', track_name)
-                    if display:
-                        print(Fore.GREEN + f'Downloading ({num}/{self.playlist.num_tracks}): {track_name}')
+                    track_name = delete_forbidden_signs(track_name)
+                    print(Fore.GREEN + f'Downloading ({num}/{self.playlist.num_tracks}): {track_name}')
                     fname = f'{track.artist.name} - {track_name}.flac'.replace("/", "_")
                     download_flac(track, folder / fname)
                     playlist_file.write(fname)
@@ -227,11 +227,19 @@ def download_flac(track: tidalapi.models.Track, file_path, album=None):
         shutil.copyfileobj(data, f)
 
 
-def download_thread(q, display):
+def delete_forbidden_signs(name):
+    forbidden = '<>:|"/\\?*'
+    replacement = '_'
+    for c in forbidden:
+        name = name.replace(c, replacement)
+
+    return name
+
+
+def download_thread(q):
     while True:
         tmp = q.get()
-        print(Fore.LIGHTMAGENTA_EX + str(q.qsize()) + 'elements left in queue')
-        tmp.download(display)
+        tmp.download()
 
 
 def internet_access():
@@ -267,14 +275,8 @@ if __name__ == "__main__":
     session = tidalapi.Session(config)
     session.login(args.login, args.password)
 
-    print(Fore.LIGHTRED_EX + "Do you want to display downloaded elements? [y/n]")
-    if input() != 'n':
-        display = True
-    else:
-        display = False
-
     q = queue.Queue()  # infinite queue
-    d_thread = threading.Thread(target=download_thread, args=(q, display))
+    d_thread = threading.Thread(target=download_thread, args=(q,))
     d_thread.start()  # starting a download thread
     print(Fore.LIGHTYELLOW_EX + "Download thread has started\n")
 
@@ -289,7 +291,6 @@ if __name__ == "__main__":
             "Exit\n")
         mode = input("Select mode:\n")
 
-        # TODO: download queue
         # TODO: search for album
         # TODO: search for artist
         # TODO: search for playlist
@@ -306,14 +307,14 @@ if __name__ == "__main__":
                 track_id = link.split('/')[-1]
                 track = session.get_track(track_id, withAlbum=True)
                 q.put(QueueTrack(track, folder))  # adding a track to download queue
-                print(Fore.RED + f'\nEnqueued track: {track.artist.name} - {track.name}' + '\n')
+                print(Fore.RED + f'\nEnqueued track: {track.artist.name} - {track.name}')
 
             elif mode == "2":
                 link = input("Enter album link or id: \n")
                 album_id = link.split('/')[-1]
                 album = session.get_album(album_id=album_id)
                 q.put(QueueAlbum(album, folder))  # adding a track to download queue
-                print(Fore.RED + f'\nEnqueued album: {album.artist.name} - {album.name}' + '\n')
+                print(Fore.RED + f'\nEnqueued album: {album.artist.name} - {album.name}')
 
             elif mode == "3":
                 link = input("Enter playlist link or id: \n")
