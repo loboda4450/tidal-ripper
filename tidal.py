@@ -47,7 +47,7 @@ class QueueTrack(QueueObject):
 
             track_name = f'{self.track.name}{f" ({self.track.version})" if self.track.version else ""}'
             track_name = delete_forbidden_signs(track_name)
-            print(Fore.GREEN + f'\nDownloading track: {self.track.artist.name} - {track_name} to {folder}')
+            print(Fore.GREEN + f'\nDownloading track: {self.track.artist.name} - {track_name} to {folder}\n')
             download_flac(self.track, folder / f'{self.track.artist.name} - {track_name}.flac'.replace("/", "_"))
             print(Fore.CYAN + f'\nTrack: {self.track.artist.name} - {track_name} downloaded!')
         except FLACNoHeaderError:
@@ -72,17 +72,20 @@ class QueueAlbum(QueueObject):
 
     def download(self):
         try:
-            print(Fore.GREEN + f'Downloading album: {self.album.artist.name} - {self.album.name}')
+            print(Fore.GREEN + f'Downloading album: {self.album.artist.name} - {self.album.name}\n')
             tracks = session.get_album_tracks(album_id=self.album.id)  # type: typing.Iterable[tidalapi.models.Track]
             num = 0
-            # TODO: handle multicd albums better (separate dirs and playlists?)
             discs = max(map(lambda x: x.disc_num, tracks))
             name = f'{f"({self.album.release_date.year}) " if self.album.release_date is not None else ""}{self.album.name}'.replace(
                 "/", "_")
             name = delete_forbidden_signs(name)
-            folder = self.folder / self.album.artist.name.replace("/",
-                                                                  "_") / name
+            folder = self.folder / self.album.artist.name.replace("/", "_") / name
             folder.mkdir(parents=True, exist_ok=True)
+            if discs > 1:
+                for d in range(discs):
+                    disc = folder / "disc" + d
+                    disc.mkdir(parents=True, exist_ok=True)
+
             with open(folder / f'00. {delete_forbidden_signs(self.album.name)}.m3u', 'w') as playlist_file:
                 for track in tracks:
                     try:
@@ -93,7 +96,11 @@ class QueueAlbum(QueueObject):
                             Fore.GREEN + f'Downloading ({num}/{self.album.num_tracks}): {track_name}')  # printing
                         # each downloaded element kills clarity so badly//not if coloured
                         fname = f'{str(track.track_num).zfill(2)}. {track_name.replace("/", "_")}.flac'
-                        download_flac(track, folder / fname, album=self.album)
+                        if discs == 1:
+                            download_flac(track, folder / fname, album=self.album)
+                        else:
+                            download_flac(track, folder / "disc" + track.volumeNumber / fname, album=self.album)
+
                         playlist_file.write(fname)
                         playlist_file.write("\n")
                     except requests.exceptions.HTTPError as e:
@@ -123,7 +130,7 @@ class QueuePlaylist(QueueObject):
 
     def download(self):
         try:
-            print(Fore.GREEN + f'Downloading playlist: {self.playlist.name}')
+            print(Fore.GREEN + f'Downloading playlist: {self.playlist.name}\n')
             tracks = session.get_playlist_tracks(playlist_id=self.playlist.id)
             num = 0
             playlist_name = delete_forbidden_signs(self.playlist.name)
@@ -258,10 +265,10 @@ if __name__ == "__main__":
     init(autoreset=True)
 
     if not internet_access():
-        print(Fore.LIGHTRED_EX + Back.BLACK + "You have no internet connection, exiting")
+        print(Fore.LIGHTRED_EX + Back.BLACK + "You have no internet connection, exiting\n")
         sys.exit()
     else:
-        print(Fore.LIGHTGREEN_EX + Back.BLACK + "Internet connection checked!")
+        print(Fore.LIGHTGREEN_EX + Back.BLACK + "Internet connection checked!\n")
 
     p = argparse.ArgumentParser()
     p.add_argument('login', help="TIDAL login/email")
