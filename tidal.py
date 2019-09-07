@@ -44,7 +44,6 @@ class QueueTrack(QueueObject):
                     break
                 else:
                     folder = self.folder / '1. No album'
-
             track_name = f'{self.track.name}{f" ({self.track.version})" if self.track.version else ""}'
             track_name = delete_forbidden_signs(track_name)
             print(Fore.GREEN + f'\nDownloading track: {self.track.artist.name} - {track_name} to {folder}\n')
@@ -76,17 +75,16 @@ class QueueAlbum(QueueObject):
             tracks = session.get_album_tracks(album_id=self.album.id)  # type: typing.Iterable[tidalapi.models.Track]
             num = 0
             discs = max(map(lambda x: x.disc_num, tracks))
-            name = f'{f"({self.album.release_date.year}) " if self.album.release_date is not None else ""}{self.album.name}'.replace(
-                "/", "_")
+            name = f'{f"({self.album.release_date.year}) " if self.album.release_date is not None else ""}{self.album.name}'.replace("/", "_")
             name = delete_forbidden_signs(name)
-            folder = self.folder / self.album.artist.name.replace("/", "_") / name
-            folder.mkdir(parents=True, exist_ok=True)
+            album = self.folder / self.album.artist.name.replace("/", "_") / name
+            album.mkdir(parents=True, exist_ok=True)
             if discs > 1:
                 for d in range(discs):
-                    disc = folder / "disc" + d
-                    disc.mkdir(parents=True, exist_ok=True)
+                    fdisc = self.folder / self.album.artist.name.replace("/", "_") / name / f'Disc {d+1}'
+                    fdisc.mkdir(parents=True, exist_ok=True)
 
-            with open(folder / f'00. {delete_forbidden_signs(self.album.name)}.m3u', 'w') as playlist_file:
+            with open(album / f'00. {delete_forbidden_signs(self.album.name)}.m3u', 'w') as playlist_file:
                 for track in tracks:
                     try:
                         num += 1
@@ -96,10 +94,10 @@ class QueueAlbum(QueueObject):
                             Fore.GREEN + f'Downloading ({num}/{self.album.num_tracks}): {track_name}')  # printing
                         # each downloaded element kills clarity so badly//not if coloured
                         fname = f'{str(track.track_num).zfill(2)}. {track_name.replace("/", "_")}.flac'
-                        if discs == 1:
-                            download_flac(track, folder / fname, album=self.album)
+                        if discs > 1:
+                            download_flac(track, album / f'Disc {str(track.volumeNumber)}' / fname, album=self.album)
                         else:
-                            download_flac(track, folder / "disc" + track.volumeNumber / fname, album=self.album)
+                            download_flac(track, album / fname, album=self.album)
 
                         playlist_file.write(fname)
                         playlist_file.write("\n")
@@ -146,6 +144,7 @@ class QueuePlaylist(QueueObject):
                     download_flac(track, folder / fname)
                     playlist_file.write(fname)
                     playlist_file.write("\n")
+
             print(Fore.CYAN + f'\nPlaylist {self.playlist.name} downloaded!' + '\n')
         except FLACNoHeaderError:
             print(Fore.BLACK + Back.RED + "This playlist is not available in lossless quality, abandoning")
@@ -314,14 +313,14 @@ if __name__ == "__main__":
                 track_id = link.split('/')[-1]
                 track = session.get_track(track_id, withAlbum=True)
                 q.put(QueueTrack(track, folder))  # adding a track to download queue
-                print(Fore.RED + f'\nEnqueued track: {track.artist.name} - {track.name}')
+                print(Fore.RED + f'\nEnqueued track: {track.artist.name} - {track.name}\n')
 
             elif mode == "2":
                 link = input("Enter album link or id: \n")
                 album_id = link.split('/')[-1]
                 album = session.get_album(album_id=album_id)
                 q.put(QueueAlbum(album, folder))  # adding a track to download queue
-                print(Fore.RED + f'\nEnqueued album: {album.artist.name} - {album.name}')
+                print(Fore.RED + f'\nEnqueued album: {album.artist.name} - {album.name}\n')
 
             elif mode == "3":
                 link = input("Enter playlist link or id: \n")
