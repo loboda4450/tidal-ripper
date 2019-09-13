@@ -160,6 +160,64 @@ class QueuePlaylist(QueueObject):
         print(Fore.LIGHTMAGENTA_EX + f'Playlist "{self.playlist.name}" created by {self.playlist.creator}')
 
 
+def menu(mode):
+    try:
+        if mode == "l":
+            search_query = input("Enter search query: ")
+            search = session.search(field='track', value=search_query)
+            for track in search.tracks:
+                # TODO: selector to download
+                print(f"{track.id}: {track.artist.name} - {track.name}")
+
+        elif mode == "s":
+            if not q.empty():
+                print('\n' + Fore.LIGHTMAGENTA_EX + str(q.qsize()) + " element(s) in queue\n")
+                for member in list(q.queue):
+                    member.display()
+                print('\n')
+            else:
+                print(Fore.LIGHTMAGENTA_EX + "Queue is empty\n")
+
+        elif mode == "e":
+            if not q.empty():
+                print('Queue is not empty, ripper will shut down immediately after the download process')
+                menu("s")
+                sys.exit(0)
+            else:
+                print("Thanks for using tidal ripper. Don't close this window if your last download hasn't "
+                      "finished. See you around!")
+                sys.exit(0)
+        else:
+            print("Incorrect mode!")
+
+    except Exception as e:
+        print(f"Error occurred: {e}")
+
+
+def download_menu(folder):
+        try:
+            link = input("Paste link to file:\n")
+            category = link.split("/")[-2]
+            file_id = link.split("/")[-1]
+
+            if category == "track":
+                track = session.get_track(track_id=file_id, withAlbum=True)
+                q.put(QueueTrack(track, folder))  # adding a track to download queue
+                print(Fore.RED + f'\nEnqueued track: {track.artist.name} - {track.name}\n')
+
+            elif category == "album":
+                album = session.get_album(album_id=file_id)
+                q.put(QueueAlbum(album, folder))  # adding a track to download queue
+                print(Fore.RED + f'\nEnqueued album: {album.artist.name} - {album.name}\n')
+
+            elif category == "playlist":
+                playlist = session.get_playlist(playlist_id=file_id)
+                q.put(QueuePlaylist(playlist, folder))
+                print(Fore.RED + f'\nEnqueued playlist: {playlist.name} \n')
+        except Exception as e:
+            print(f"Error occurred: {e}")
+
+
 def get_track_title(track):
     title = track.name.strip()  # just in case
 
@@ -250,30 +308,27 @@ def download_thread(q):
 
 def internet_access():
     try:
-        requests.get("http://github.com", timeout=3)
-        return True
-    except requests.ConnectionError:
-        pass
+        requests.get("http://listen.tidal.com", timeout=3)
+        print(Fore.LIGHTGREEN_EX + Back.BLACK + "Internet connection checked!\n")
 
-    return False
+    except requests.ConnectionError:
+        print(Fore.LIGHTRED_EX + Back.BLACK + "You have no internet connection, exiting\n")
+        sys.exit()
 
 
 if __name__ == "__main__":
+    # TODO: search for album
+    # TODO: search for artist
+    # TODO: search for playlist
     import argparse
 
     init(autoreset=True)
-
-    if not internet_access():
-        print(Fore.LIGHTRED_EX + Back.BLACK + "You have no internet connection, exiting\n")
-        sys.exit()
-    else:
-        print(Fore.LIGHTGREEN_EX + Back.BLACK + "Internet connection checked!\n")
-
+    internet_access()
     p = argparse.ArgumentParser()
     p.add_argument('login', help="TIDAL login/email")
     p.add_argument('password', help="TIDAL password")
     p.add_argument('output_dir', help="output directory (download target)")
-    p.add_argument('--api_token', help="TIDAL API token", default='BI218mwp9ERZ3PFI')
+    p.add_argument('--api_token', help="TIDAL API token", default='kgsOOmYk3zShYrNP')
     args = p.parse_args()
 
     config = tidalapi.Config(tidalapi.Quality.lossless)
@@ -281,73 +336,28 @@ if __name__ == "__main__":
     session = tidalapi.Session(config)
     session.login(args.login, args.password)
 
-    q = queue.Queue()  # infinite queue
-    d_thread = threading.Thread(target=download_thread, args=(q,))
-    d_thread.start()  # starting a download thread
-    print(Fore.LIGHTYELLOW_EX + "Download thread has started\n")
+    folder = Path(args.output_dir)
+    folder.mkdir(parents=True, exist_ok=True)
 
     print(Back.BLUE + Fore.LIGHTGREEN_EX + "Tidal FLAC ripper\n")
 
+    q = queue.Queue()  # infinite queue
+    d_thread = threading.Thread(target=download_thread, args=(q,))
+    d_thread.start()  # starting a download thread
+
     while True:
-        folder = Path(args.output_dir)
-        folder.mkdir(parents=True, exist_ok=True)
-
         print(
-            "0) Search for track\n1) Download track\n2) Download album\n3) Download playlist\n4) Display queue\n5) "
-            "Exit\n")
+            "\n[L]ook for track"
+            "\n[D]ownload"
+            "\n[S]how queue"
+            "\n[E]xit\n")
         mode = input("Select mode:\n")
+        mode = mode.lower()
+        while mode != "l" and mode != "d" and mode != "s" and mode != "e":
+            mode = input("Select mode:\n")
+            mode = mode.lower()
 
-        # TODO: search for album
-        # TODO: search for artist
-        # TODO: search for playlist
-        try:
-            if mode == "0":
-                search_query = input("Enter search query: ")
-                search = session.search(field='track', value=search_query)
-                for track in search.tracks:
-                    # TODO: selector to download
-                    print(f"{track.id}: {track.artist.name} - {track.name}")
-
-            elif mode == "1":
-                link = input("Enter link or track id: \n")
-                track_id = link.split('/')[-1]
-                track = session.get_track(track_id, withAlbum=True)
-                q.put(QueueTrack(track, folder))  # adding a track to download queue
-                print(Fore.RED + f'\nEnqueued track: {track.artist.name} - {track.name}\n')
-
-            elif mode == "2":
-                link = input("Enter album link or id: \n")
-                album_id = link.split('/')[-1]
-                album = session.get_album(album_id=album_id)
-                q.put(QueueAlbum(album, folder))  # adding a track to download queue
-                print(Fore.RED + f'\nEnqueued album: {album.artist.name} - {album.name}\n')
-
-            elif mode == "3":
-                link = input("Enter playlist link or id: \n")
-                playlist_id = link.split('/')[-1]
-                playlist = session.get_playlist(playlist_id=playlist_id)
-                q.put(QueuePlaylist(playlist, folder))
-                print(Fore.RED + f'\nEnqueued playlist: {playlist.name} \n')
-
-            elif mode == "4":
-                if not q.empty():
-                    print('\n' + Fore.LIGHTMAGENTA_EX + str(q.qsize()) + " element(s) in queue\n")
-                    for member in list(q.queue):
-                        member.display()
-                    print('\n')
-                else:
-                    print(Fore.LIGHTMAGENTA_EX + "Queue is empty\n")
-
-            elif mode == "5":
-                if not q.empty():
-                    print('Queue is not empty, ripper will shut down immediately after the download process')
-                    sys.exit(0)
-                else:
-                    print("Thanks for using tidal ripper. Don't close this window if your last download hasn't "
-                          "finished. See you around!")
-                    sys.exit(0)
-            else:
-                print("Incorrect mode!")
-
-        except Exception as e:
-            print(f"Error occurred: {e}")
+        if mode == "d":
+            download_menu(folder)
+        else:
+            menu(mode)
