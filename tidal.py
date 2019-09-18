@@ -40,15 +40,16 @@ class QueueTrack(QueueObject):
         try:
             for directory in os.listdir(self.folder):
                 if directory == self.track.artist.name.replace("/", "_"):
-                    folder = directory
+                    print(type(directory))
+                    album = self.folder / directory
                     break
                 else:
-                    folder = self.folder / '1. No album'
-            track_name = f'{self.track.name}{f" ({self.track.version})" if self.track.version else ""}'
+                    album = self.folder / '1. No album'
+            track_name = f'{self.track.artist.name} - {self.track.name}{f" ({self.track.version})" if self.track.version else ""}'
             track_name = delete_forbidden_signs(track_name)
-            print(Fore.GREEN + f'\nDownloading track: {self.track.artist.name} - {track_name} to {folder}\n')
-            download_flac(self.track, folder / f'{self.track.artist.name} - {track_name}.flac'.replace("/", "_"))
-            print(Fore.CYAN + f'\nTrack: {self.track.artist.name} - {track_name} downloaded!')
+            print(Fore.GREEN + f'\nDownloading track: {track_name} to {album}\n')
+            download_flac(self.track, album / f'{track_name}.flac')
+            print(Fore.CYAN + f'\nTrack: {track_name} downloaded!')
         except FLACNoHeaderError:
             print(Fore.BLACK + Back.RED + "This track is not available in lossless quality, abandoning")
         except ConnectionError:
