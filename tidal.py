@@ -34,20 +34,23 @@ class QueueObject:
 class QueueTrack(QueueObject):
     def __init__(self, track, folder):
         self.track = track
-        self.folder = folder
+        self.folder = Path(folder)
 
     def download(self):
         try:
+            album = None
             for directory in os.listdir(self.folder):
                 if directory == self.track.artist.name.replace("/", "_"):
-                    print(type(directory))
                     album = self.folder / directory
                     break
-                else:
-                    album = self.folder / '1. No album'
+
+            if album is None:
+                album = self.folder / '1. No album'
+            album.mkdir(parents=True, exist_ok=True)
+
             track_name = f'{self.track.artist.name} - {self.track.name}{f" ({self.track.version})" if self.track.version else ""}'
             track_name = delete_forbidden_signs(track_name)
-            print(Fore.GREEN + f'\nDownloading track: {track_name} to {album}\n')
+            print(Fore.GREEN + f'\nDownloading track: {track_name} to {str(album)}\n')
             download_flac(self.track, album / f'{track_name}.flac')
             print(Fore.CYAN + f'\nTrack: {track_name} downloaded!')
         except FLACNoHeaderError:
